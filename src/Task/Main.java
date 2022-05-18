@@ -44,7 +44,7 @@ class Task implements Runnable {
             pool.execute(new Consumer(drop));
         }
 
-        ColStat cs = new ColStat(queue, pool, alStCont, numbOfElems);
+        ColStat cs = new ColStat(queue, pool, alStCont);
         Thread th = new Thread(cs);
         th.start();
         pool.shutdown();
@@ -58,13 +58,11 @@ class ColStat implements Runnable {
     private final Queue queue;
     private final ExecutorService pool;
     private final AllStatCont alStCont;
-    private int numbOfElems;
 
-    public ColStat(Queue queue, ExecutorService pool, AllStatCont alStCont, int numbOfElems) {
+    public ColStat(Queue queue, ExecutorService pool, AllStatCont alStCont) {
         this.queue = queue;
         this.pool = pool;
         this.alStCont = alStCont;
-        this.numbOfElems = numbOfElems;
     }
 
     @Override
@@ -85,7 +83,6 @@ class ColStat implements Runnable {
                 alStCont.addToCont(rejCount, nOfEl, elementsInQueue, false);
             if(pool.isTerminated()) {
                 alStCont.addToCont(rejCount, nOfEl, elementsInQueue, true);
-                System.out.println("Shutdown");
                 break;
             }
         }
