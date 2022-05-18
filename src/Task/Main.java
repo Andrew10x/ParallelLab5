@@ -1,4 +1,4 @@
-package Task3;
+package Task;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -12,7 +12,7 @@ public class Main {
 
     static void task1() {
         int numbOfTasks = 5;
-        int numbOfElems = 500;
+        int numbOfElems = 1000;
         AllStatCont alStCont = new AllStatCont(numbOfTasks);
         ExecutorService pool = Executors.newFixedThreadPool(numbOfTasks);
         Task t = new Task(alStCont, numbOfElems);
