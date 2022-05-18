@@ -1,4 +1,4 @@
-package Task22;
+package Task3;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -12,10 +12,10 @@ public class Main {
 
     static void task1() {
         int numbOfTasks = 5;
-        int numbOfElems = 1000;
+        int numbOfElems = 500;
         AllStatCont alStCont = new AllStatCont(numbOfTasks);
-        Task t = new Task(alStCont, numbOfElems);
         ExecutorService pool = Executors.newFixedThreadPool(numbOfTasks);
+        Task t = new Task(alStCont, numbOfElems);
         for(int i=0; i<numbOfTasks; i++) {
             pool.execute(t);
         }
@@ -57,8 +57,8 @@ class ColStat implements Runnable {
     private final List<Integer> elementsInQueue = new ArrayList<>();
     private final Queue queue;
     private final ExecutorService pool;
-    private final int numbOfElems;
     private final AllStatCont alStCont;
+    private int numbOfElems;
 
     public ColStat(Queue queue, ExecutorService pool, AllStatCont alStCont, int numbOfElems) {
         this.queue = queue;
@@ -69,17 +69,23 @@ class ColStat implements Runnable {
 
     @Override
     public void run() {
+        int k = 0;
         while(true) {
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+            k++;
             int qSize = queue.getQueueSize();
             int rejCount = queue.getRejCount();
+            int nOfEl = queue.getNumbOfElems();
             elementsInQueue.add(qSize);
+            if(k % 3 == 0)
+                alStCont.addToCont(rejCount, nOfEl, elementsInQueue, false);
             if(pool.isTerminated()) {
-                alStCont.addToCont(rejCount, numbOfElems, elementsInQueue);
+                alStCont.addToCont(rejCount, nOfEl, elementsInQueue, true);
+                System.out.println("Shutdown");
                 break;
             }
         }
@@ -91,6 +97,7 @@ class Queue {
     private boolean endOfQueue = false;
     private int rejCount = 0;
     private final int maxSize = 18;
+    private int numberOfElems = 0;
 
     public synchronized boolean getEndOfQueue() {
         return endOfQueue && queue.size() != 0 && queue.get(0) == Integer.MAX_VALUE;
@@ -114,6 +121,7 @@ class Queue {
             int el =  queue.get(0);
             if(el != Integer.MAX_VALUE)
                 queue.remove(0);
+            numberOfElems++;
             return el;
         }
         else throw new Exception("queue is empty");
@@ -129,6 +137,10 @@ class Queue {
 
     public synchronized  int getQueueSize() {
         return queue.size();
+    }
+
+    public synchronized int getNumbOfElems() {
+        return numberOfElems;
     }
 }
 
@@ -157,6 +169,13 @@ class Producer implements Runnable {
                 Thread.sleep(sleepTime);
             } catch (InterruptedException e) {}
         }
+
+        try {
+            Thread.sleep(4000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
         drop.setEndOfQueue();
         drop.put(Integer.MAX_VALUE);
     }
@@ -243,47 +262,69 @@ class AllStat {
 }
 
 class AllStatCont {
-    private final List<AllStat> cont = new ArrayList<>();
+    private List<AllStat> cont = new ArrayList<>();
+    private List<AllStat> finalCont;
+    private int nOfEl = 0;
+    private int fNOfEl = 0;
     private final int numbOfWork;
+    private int numbOfTrue = 0;
 
     public AllStatCont(int numbOfWork) {
         this.numbOfWork = numbOfWork;
+        finalCont = new ArrayList<>(numbOfWork);
     }
 
-    public synchronized void addToCont(int rejCount, int numbOfElems, List<Integer> elementsInQueue) {
+    public synchronized void addToCont(int rejCount, int numbOfElems, List<Integer> elementsInQueue, boolean isEnd) {
+
+        if(isEnd)
+            numbOfTrue++;
+
         int sum = 0;
         for(int el: elementsInQueue) {
             sum += el;
         }
+        nOfEl += numbOfElems;
         float evSize = (float) sum/elementsInQueue.size();
         float rejCountPer = (float) rejCount/numbOfElems;
         AllStat alst = new AllStat(evSize, rejCount, rejCountPer);
         cont.add(alst);
-        if(numbOfWork == cont.size())
-            calcAndShow(numbOfElems*numbOfWork);
-
+        if(numbOfWork == cont.size()) {
+            fNOfEl = nOfEl;
+            finalCont = new ArrayList<>(cont);
+            calcAndShow(nOfEl, false);
+            cont.clear();
+            nOfEl = 0;
+        }
+        if(numbOfTrue == numbOfWork) {
+            calcAndShow(fNOfEl, true);
+            numbOfTrue++;
+        }
     }
 
-    public synchronized void calcAndShow(int numbOfElems) {
-
-        for(AllStat c: cont) {
-            System.out.println("ev size = " + new DecimalFormat("#0.00").format(c.getElementsInQueue()));
-            System.out.println("rej count = " + c.getRejCount());
-            System.out.println("rej count per = " + c.getRejCountPer() + " or " + c.getRejCountPer()*100 + "%");
-            System.out.println();
-        }
+    public synchronized void calcAndShow(int numbOfElems, boolean isEnd) {
 
         float elemInQueue = 0;
         float rejCount = 0;
 
-        for(AllStat c: cont) {
+        for(AllStat c: finalCont) {
             elemInQueue += c.getElementsInQueue();
             rejCount += c.getRejCount();
         }
-        elemInQueue /= cont.size();
+        elemInQueue /= finalCont.size();
         float rejCountPer = rejCount / numbOfElems;
-
-        System.out.println("Total ev size = " + new DecimalFormat("#0.00").format(elemInQueue));
-        System.out.println("Total rej per= " + rejCountPer + " or " + rejCountPer*100 + "%");
+        if(!isEnd) {
+            System.out.println("Ev size = " + new DecimalFormat("#0.00").format(elemInQueue));
+            System.out.println("Rej per= " + new DecimalFormat("#0.00000").format(rejCountPer)
+                    + " or " + new DecimalFormat("#0.000").format(rejCountPer*100) + "%");
+        }
+        else {
+            System.out.println();
+            System.out.println("============================");
+            System.out.println();
+            System.out.println("Total ev size = " + new DecimalFormat("#0.00").format(elemInQueue));
+            System.out.println("Rej per= " + new DecimalFormat("#0.00000").format(rejCountPer)
+                    + " or " + new DecimalFormat("#0.000").format(rejCountPer*100) + "%");
+        }
+        System.out.println();
     }
 }
